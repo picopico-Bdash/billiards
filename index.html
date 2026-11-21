@@ -1153,8 +1153,19 @@ for(const [id,dir] of [['aimL',-1],['aimR',1]]){
   for(const ev of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(ev,stopRot);
   b.addEventListener('contextmenu',e=>e.preventDefault());
 }
-document.getElementById('aimOK').addEventListener('click',()=>{if(S.phase==='aim'){stopRot();enterShot();}});
-document.getElementById('reAim').onclick=()=>{if(S.phase==='shot')enterAim();};
+/* iOSの長押し・ダブルタップで出るルーペ（拡大鏡）を止める：ゲーム中に触る所の touch 既定動作を無効化。
+   ポインターイベントは止まらないので、ボタンは click ではなく pointerup で反応させる */
+function tapBtn(el,fn){
+  el.addEventListener('pointerdown',e=>{try{el.setPointerCapture(e.pointerId);}catch(_){}});
+  el.addEventListener('pointerup',e=>{
+    const r=el.getBoundingClientRect();
+    if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom)fn();
+  });
+}
+for(const el of [cv,document.getElementById('aimUI'),document.getElementById('shotUI')])
+  for(const ev of ['touchstart','touchmove','touchend'])el.addEventListener(ev,e=>{if(e.cancelable)e.preventDefault();},{passive:false});
+tapBtn(document.getElementById('aimOK'),()=>{if(S.phase==='aim'){stopRot();enterShot();}});
+tapBtn(document.getElementById('reAim'),()=>{if(S.phase==='shot')enterAim();});
 
 /* ===================== HUD ===================== */
 function ballIcon(n,gone){
