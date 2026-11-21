@@ -76,6 +76,14 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 #toast .foul{color:#ff8a7a}
 #shotUI{position:fixed;left:12px;bottom:calc(max(6px,env(safe-area-inset-bottom)) + 38px);z-index:7;display:none}
 #shotUI.show{display:block}
+#aimUI{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(6px,env(safe-area-inset-bottom)) + 34px);
+  z-index:7;display:none;gap:10px;align-items:center;touch-action:none}
+#aimUI.show{display:flex}
+#aimUI button{height:52px;border-radius:26px;border:1px solid #ffffff55;background:#000000a0;color:#fff;
+  font-size:20px;font-weight:800;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}
+#aimUI .rot{width:62px}
+#aimUI .ok{min-width:96px;padding:0 18px;font-size:17px;background:linear-gradient(#f3c74b,#c9962a);color:#1b1200;border-color:#ffe9a8}
+#aimUI button:active,#aimUI button.on{filter:brightness(1.35);transform:scale(.95)}
 /* overlays */
 .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
   z-index:20;background:radial-gradient(ellipse at 50% 35%,#0f4a2bf2,#020805fa 75%);padding:20px;text-align:center;overflow:auto}
@@ -127,6 +135,11 @@ h2{margin:0 0 14px;font-size:24px;color:var(--gold)}
 </div>
 <div id="hint"></div>
 <div id="toast"></div>
+<div id="aimUI">
+  <button class="rot" id="aimL" title="左へ回す">◀</button>
+  <button class="ok" id="aimOK">決定</button>
+  <button class="rot" id="aimR" title="右へ回す">▶</button>
+</div>
 <div id="shotUI"><button class="btn sub" id="reAim" style="width:auto;padding:9px 16px;margin:0">◀ 狙い直す</button></div>
 
 <!-- タイトル -->
@@ -1012,7 +1025,7 @@ function toast(html,ms){
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),ms||2300);
 }
 function enterPlace(kitchen){
-  S.phase='place';S.placeKitchen=kitchen;
+  S.phase='place';S.placeKitchen=kitchen;stopRot();document.getElementById('aimUI').classList.remove('show');
   const cue=S.balls[0];cue.on=true;cue.vx=cue.vy=cue.rx=cue.ry=cue.s=0;
   const keep=!kitchen&&S.shot&&!S.shot.scratch;
   const [x,y]=findFreeNear(keep?cue.x:HEADX,keep?cue.y:W/2,kitchen,cue);
@@ -1036,10 +1049,12 @@ function defaultAim(){
 function enterAim(){
   S.phase='aim';S.power=0;defaultAim();
   document.getElementById('shotUI').classList.remove('show');
-  hint(isTouch?'画面をなぞって狙いを決める → 指を離して決定':'マウスで狙いを決めて左クリック（ホイールで微調整）');
+  document.getElementById('aimUI').classList.toggle('show',isTouch);
+  hint(isTouch?'画面をなぞる／◀ ▶で向きを調整 → 決定':'マウスで狙いを決めて左クリック（ホイールで微調整）');
 }
 function enterShot(){
-  S.phase='shot';S.power=0;S.drag=null;
+  S.phase='shot';S.power=0;S.drag=null;stopRot();
+  document.getElementById('aimUI').classList.remove('show');
   document.getElementById('shotUI').classList.add('show');
   hint(isTouch?'打点をタッチ → 右のゲージを下へフリック → 指を離してショット':'打点をクリック → 右のゲージを下へ引く → 離してショット');
 }
@@ -1051,6 +1066,7 @@ function shoot(){
   S.hit={x:0,y:0}; // 次のターンは打点を中心に戻す
   const c=shotContext();
   S.shot={firstHit:null,pocketed:[],scratch:false,railAfter:false,isBreak:S.isBreak,lowest:c.lowest,myGroup:c.myGroup,onEight:c.onEight};
+  document.getElementById('aimUI').classList.remove('show');
   S.shots++;lastPocketCount=0;S.phase='moving';S.simTime=0;S.power=0;hint('');
   document.getElementById('shotUI').classList.remove('show');
   tone(520,0.05,Math.min(0.5,0.1+V*0.06),'square');
@@ -1097,7 +1113,7 @@ cv.addEventListener('pointermove',e=>{
 function up(e){
   if(!down)return;down=false;
   if(S.phase==='place'){if(S.placeValid)enterAim();}
-  else if(S.phase==='aim')enterShot();
+  else if(S.phase==='aim'){if(e.pointerType==='mouse')enterShot();} // タッチは「決定」ボタンで確定
   else if(S.phase==='shot'){if(S.drag&&S.drag.gauge&&S.power>=0.02)shoot();else S.power=0;S.drag=null;}
 }
 cv.addEventListener('pointerup',up);
@@ -1112,6 +1128,32 @@ addEventListener('keydown',e=>{
     else if(e.key==='Enter'||e.key===' '){enterShot();e.preventDefault();}
   }else if(S.phase==='shot'&&e.key==='Escape')enterAim();
 });
+/* スマホ用：◀ ▶ で狙いを回転（タップで微調整、長押しで連続・加速）、決定でショットへ */
+let rotTimer=0,rotBtn=null;
+function stopRot(){if(rotTimer){cancelAnimationFrame(rotTimer);rotTimer=0;}if(rotBtn){rotBtn.classList.remove('on');rotBtn=null;}}
+function startRot(btn,dir){
+  stopRot();if(S.phase!=='aim')return;
+  rotBtn=btn;btn.classList.add('on');
+  S.aim+=dir*0.0035; // 1回タップ＝約0.2°
+  const t0=performance.now();let prev=t0;
+  const step=t=>{
+    if(S.phase!=='aim'){stopRot();return;}
+    const held=t-t0,dt=Math.min(50,t-prev);prev=t;
+    if(held>300){ // 長押し：ゆっくり→だんだん速く
+      const sp=Math.min(1.2,0.06+(held-300)*0.0006); // rad/s
+      S.aim+=dir*sp*dt/1000;
+    }
+    rotTimer=requestAnimationFrame(step);
+  };
+  rotTimer=requestAnimationFrame(step);
+}
+for(const [id,dir] of [['aimL',-1],['aimR',1]]){
+  const b=document.getElementById(id);
+  b.addEventListener('pointerdown',e=>{e.preventDefault();ensureAudio();try{b.setPointerCapture(e.pointerId);}catch(_){}startRot(b,dir);});
+  for(const ev of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(ev,stopRot);
+  b.addEventListener('contextmenu',e=>e.preventDefault());
+}
+document.getElementById('aimOK').addEventListener('click',()=>{if(S.phase==='aim'){stopRot();enterShot();}});
 document.getElementById('reAim').onclick=()=>{if(S.phase==='shot')enterAim();};
 
 /* ===================== HUD ===================== */
@@ -1207,7 +1249,7 @@ document.addEventListener('visibilitychange',bgmSync);
 const sBtn=document.getElementById('soundBtn');
 sBtn.onclick=()=>{S.sound=!S.sound;sBtn.textContent=S.sound?'🔊':'🔇';try{localStorage.setItem('picopico_billiards_sound',S.sound?'1':'0');}catch(e){}bgmSync();};
 try{if(localStorage.getItem('picopico_billiards_sound')==='0'){S.sound=false;sBtn.textContent='🔇';}}catch(e){}
-function toTitle(){S.phase='title';hudEl.classList.remove('show');hint('');document.getElementById('shotUI').classList.remove('show');show('scTitle');layout();bgmStop();}
+function toTitle(){S.phase='title';stopRot();hudEl.classList.remove('show');hint('');document.getElementById('aimUI').classList.remove('show');document.getElementById('shotUI').classList.remove('show');show('scTitle');layout();bgmStop();}
 function startGame(){
   bgmStart();
   S.players=S.mode===1?[{name:'プレイヤー',group:null,consec:0}]
