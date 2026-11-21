@@ -76,10 +76,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 #toast .foul{color:#ff8a7a}
 #shotUI{position:fixed;left:12px;bottom:calc(max(6px,env(safe-area-inset-bottom)) + 38px);z-index:7;display:none}
 #shotUI.show{display:block}
-#aimUI{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(6px,env(safe-area-inset-bottom)) + 34px);
+#aimUI{position:fixed;left:50%;transform:translateX(-50%);bottom:max(6px,env(safe-area-inset-bottom));
   z-index:7;display:none;gap:10px;align-items:center;touch-action:none}
 #aimUI.show{display:flex}
-#aimUI button{height:52px;border-radius:26px;border:1px solid #ffffff55;background:#000000a0;color:#fff;
+#aimUI button{height:48px;border-radius:24px;border:1px solid #ffffff55;background:#000000a0;color:#fff;
   font-size:20px;font-weight:800;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}
 #aimUI .rot{width:62px}
 #aimUI .ok{min-width:96px;padding:0 18px;font-size:17px;background:linear-gradient(#f3c74b,#c9962a);color:#1b1200;border-color:#ffe9a8}
@@ -450,7 +450,7 @@ function layout(){
   const pw=Math.round(cw*dpr),ph=Math.round(ch*dpr);
   if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph;}
   hudH=hudEl.classList.contains('show')?hudEl.offsetHeight:0;
-  const aw=cw-12,ah=ch-hudH-36,tw=L+2*RAIL,th=W+2*RAIL;
+  const aw=cw-12,ah=ch-hudH-(isTouch?62:36),tw=L+2*RAIL,th=W+2*RAIL;
   const sl=Math.min(aw/tw,ah/th),sp=Math.min(aw/th,ah/tw);
   portrait=sp>sl*1.08;sc=portrait?sp:sl;
   M=new DOMMatrix().translate(cw/2,hudH+2+ah/2).rotate(portrait?-90:0).scale(sc).translate(-L/2,-W/2);
@@ -1050,7 +1050,7 @@ function enterAim(){
   S.phase='aim';S.power=0;defaultAim();
   document.getElementById('shotUI').classList.remove('show');
   document.getElementById('aimUI').classList.toggle('show',isTouch);
-  hint(isTouch?'画面をなぞる／◀ ▶で向きを調整 → 決定':'マウスで狙いを決めて左クリック（ホイールで微調整）');
+  hint(isTouch?'':'マウスで狙いを決めて左クリック（ホイールで微調整）');
 }
 function enterShot(){
   S.phase='shot';S.power=0;S.drag=null;stopRot();
